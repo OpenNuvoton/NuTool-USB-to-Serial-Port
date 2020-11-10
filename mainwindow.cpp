@@ -113,6 +113,7 @@ void MainWindow::initActionsConnections()
     connect(m_ui->actionAboutQt, &QAction::triggered, qApp, &QApplication::aboutQt);
     connect(m_ui->actionClearLog, &QAction::triggered, m_ui->receivedMessagesEdit, &QTextEdit::clear);
     connect(m_ui->actionClearLog, &QAction::triggered, m_console, &Console::clear);
+    connect(m_ui->actionAbout_NuBridge2_Terminal, &QAction::triggered, this, &MainWindow::aboutNuBridge2);
 }
 
 void MainWindow::processErrors(QSerialPort::SerialPortError error)
@@ -284,4 +285,22 @@ void MainWindow::sendFrame(const QByteArray &frame) const
         m_console->putData(frame.toHex());
 #endif
     }
+}
+
+void MainWindow::aboutNuBridge2()
+{
+    QString html = "<B>Version 1.00</B><BR><BR>"
+                   "NuBridge2 terminal is based on the following Qt examples.<BR>"
+                   "<a href=\"https://doc.qt.io/qt-5/qtserialport-terminal-example.html\">Terminal Example</a>"
+                   " and "
+                   "<a href=\"https://doc.qt.io/qt-5/qtserialbus-can-example.html\">CAN Bus example</a><BR><BR>"
+                   "<B>Github Repository</B><BR>"
+                   "<a href=\"https://github.com/OpenNuvoton/NuBridge2_Terminal\">OpenNuvoton/NuBridge2_Terminal</a>";
+    QMessageBox *box = new QMessageBox(QMessageBox::NoIcon
+                                       , "About NuBridge2 terminal"
+                                       , html
+                                       , QMessageBox::Ok
+                                       , this);
+    box->setDefaultButton(QMessageBox::Ok);
+    box->exec();
 }

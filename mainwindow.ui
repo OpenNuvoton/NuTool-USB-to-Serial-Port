@@ -92,6 +92,7 @@
      <string>&amp;Help</string>
     </property>
     <addaction name="actionAboutQt"/>
+    <addaction name="actionAbout_NuBridge2_Terminal"/>
    </widget>
    <addaction name="menuCalls"/>
    <addaction name="menuHelp"/>
@@ -148,6 +149,11 @@
    </property>
    <property name="text">
     <string>Clear &amp;Log</string>
+   </property>
+  </action>
+  <action name="actionAbout_NuBridge2_Terminal">
+   <property name="text">
+    <string>About NuBridge2 Terminal</string>
    </property>
   </action>
  </widget>
