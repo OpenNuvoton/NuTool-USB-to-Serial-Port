@@ -283,6 +283,7 @@ void MainWindow::sendFrame(const QByteArray &frame) const
             // m_console->putData(frame.toHex());
             m_serial->setRequestToSend(true);
             m_serial->write(frame);
+            m_serial->flush();
             m_serial->setRequestToSend(false);
         }
     } else { // Off-Line Mode
