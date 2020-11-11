@@ -124,11 +124,21 @@ void MainWindow::processErrors(QSerialPort::SerialPortError error)
     }
 }
 
+// The official NuLink2 fw has merged all the interface into one application.
+// Use ICE_M480 define option to enable the interface switch function.
+
 void MainWindow::openSerialPort()
 {
     const SettingsDialog::Settings p = m_settings->settings();
     m_serial->setPortName(p.name);
+
+#ifdef ICE_M480
+    qint32 baudRate = (p.baudRate & 0x0FFFFFFF) | ((p.brgMode + 1) << 28);
+    m_serial->setBaudRate(baudRate);
+#else
     m_serial->setBaudRate(p.baudRate);
+#endif
+
     m_serial->setDataBits(p.dataBits);
     m_serial->setParity(p.parity);
     m_serial->setStopBits(p.stopBits);
