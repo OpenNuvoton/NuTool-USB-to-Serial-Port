@@ -294,6 +294,9 @@ void SettingsDialog::updateSettings()
 {
     m_currentSettings.brgMode = m_mode;
 
+    m_currentSettings.usbVendorID = m_ui->vidLabel->text().right(4).toInt(nullptr, 16);
+    m_currentSettings.usbProductID = m_ui->pidLabel->text().right(4).toInt(nullptr, 16);
+
     // COM port
     m_currentSettings.name = m_ui->serialPortInfoListBox->currentText();
     if (m_mode == BRG_MODE_I2C) {

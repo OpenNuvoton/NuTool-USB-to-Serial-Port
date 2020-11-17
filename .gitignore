@@ -1,0 +1,11 @@
+.qmake.stash
+.vs/
+
+*.user
+
+debug/
+release/
+
+NuBridgeLog.txt
+
+ui_*.h

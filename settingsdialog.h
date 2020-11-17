@@ -87,6 +87,8 @@ public:
         bool logFileEnabled;
         bool normalModeEnabled;
         unsigned int canID[4];
+        unsigned int usbVendorID;
+        unsigned int usbProductID;
     };
 
     explicit SettingsDialog(QWidget *parent = nullptr);

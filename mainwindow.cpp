@@ -132,12 +132,23 @@ void MainWindow::openSerialPort()
     const SettingsDialog::Settings p = m_settings->settings();
     m_serial->setPortName(p.name);
 
-#ifdef ICE_M480
-    qint32 baudRate = (p.baudRate & 0x0FFFFFFF) | ((p.brgMode + 1) << 28);
-    m_serial->setBaudRate(baudRate);
-#else
-    m_serial->setBaudRate(p.baudRate);
-#endif
+    m_console->putData(QByteArray::number(p.usbVendorID, 16));
+    m_console->putData(QByteArray::number(p.usbProductID, 16));
+
+    bool isNuLink2 = false;
+
+    if (p.usbVendorID == 0x0416) {
+        if ((p.usbProductID == 0x5201) || (p.usbProductID == 0x5203)) {
+            isNuLink2 = true;
+        }
+    }
+
+    if (isNuLink2) {
+        qint32 baudRate = (p.baudRate & 0x0FFFFFFF) | ((p.brgMode + 1) << 28);
+        m_serial->setBaudRate(baudRate);
+    } else {
+        m_serial->setBaudRate(p.baudRate);
+    }
 
     m_serial->setDataBits(p.dataBits);
     m_serial->setParity(p.parity);
@@ -154,7 +165,12 @@ void MainWindow::openSerialPort()
         } else {
             m_ui->sendFrameBox->hide();
         }
-        m_status->setText(tr("Connected to %1").arg(p.name));
+
+        if (isNuLink2) {
+            m_status->setText(tr("Connected to %1 (Nu-Link2)").arg(p.name));
+        } else {
+            m_status->setText(tr("Connected to %1").arg(p.name));
+        }
 
         m_ui->sendFrameBox->clear();
         m_ui->sendFrameBox->insertTab(0, m_arrWidgets[p.brgMode], tr(""));
