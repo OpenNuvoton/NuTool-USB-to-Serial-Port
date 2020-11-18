@@ -124,16 +124,10 @@ void MainWindow::processErrors(QSerialPort::SerialPortError error)
     }
 }
 
-// The official NuLink2 fw has merged all the interface into one application.
-// Use ICE_M480 define option to enable the interface switch function.
-
 void MainWindow::openSerialPort()
 {
     const SettingsDialog::Settings p = m_settings->settings();
     m_serial->setPortName(p.name);
-
-    m_console->putData(QByteArray::number(p.usbVendorID, 16));
-    m_console->putData(QByteArray::number(p.usbProductID, 16));
 
     bool isNuLink2 = false;
 
@@ -142,6 +136,10 @@ void MainWindow::openSerialPort()
             isNuLink2 = true;
         }
     }
+
+    // The official NuLink2 fw has merged all the interface into one application.
+    // NuLink2 uses the most significant bits in baudRate to switch the interface.
+    // NuLink2 adapter vendor id = 0x0416, product id = 0x5201 or 0x5203
 
     if (isNuLink2) {
         qint32 baudRate = (p.baudRate & 0x0FFFFFFF) | ((p.brgMode + 1) << 28);
