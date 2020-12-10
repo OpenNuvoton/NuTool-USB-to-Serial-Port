@@ -3,7 +3,7 @@ QT += widgets serialport
 # CONFIG += C++11
 CONFIG += c++14
 
-TARGET = NuBridge2_terminal
+TARGET = NuTool-USBtoSerialPort
 TEMPLATE = app
 
 SOURCES += \

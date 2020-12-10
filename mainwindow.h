@@ -75,7 +75,7 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
-    void aboutNuBridge2();
+    void aboutNuTool();
 
 private slots:
     void processReceivedFrames();

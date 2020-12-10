@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>NuBridge2 terminal</string>
+   <string>NuTool-USB to Serial Port</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -92,7 +92,7 @@
      <string>&amp;Help</string>
     </property>
     <addaction name="actionAboutQt"/>
-    <addaction name="actionAbout_NuBridge2_Terminal"/>
+    <addaction name="actionAboutNuTool"/>
    </widget>
    <addaction name="menuCalls"/>
    <addaction name="menuHelp"/>
@@ -151,9 +151,9 @@
     <string>Clear &amp;Log</string>
    </property>
   </action>
-  <action name="actionAbout_NuBridge2_Terminal">
+  <action name="actionAboutNuTool">
    <property name="text">
-    <string>About NuBridge2 Terminal</string>
+    <string>About NuTool-USB to Serial Port</string>
    </property>
   </action>
  </widget>

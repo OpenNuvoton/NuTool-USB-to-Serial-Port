@@ -113,7 +113,7 @@ void MainWindow::initActionsConnections()
     connect(m_ui->actionAboutQt, &QAction::triggered, qApp, &QApplication::aboutQt);
     connect(m_ui->actionClearLog, &QAction::triggered, m_ui->receivedMessagesEdit, &QTextEdit::clear);
     connect(m_ui->actionClearLog, &QAction::triggered, m_console, &Console::clear);
-    connect(m_ui->actionAbout_NuBridge2_Terminal, &QAction::triggered, this, &MainWindow::aboutNuBridge2);
+    connect(m_ui->actionAboutNuTool, &QAction::triggered, this, &MainWindow::aboutNuTool);
 }
 
 void MainWindow::processErrors(QSerialPort::SerialPortError error)
@@ -223,7 +223,7 @@ void MainWindow::openSerialPort()
         }
 
         if (m_logger == 0) {
-            m_logger = new Logger(this, "NuBridgeLog.txt");
+            m_logger = new Logger(this, "LogData.txt");
         }
 
         m_logger->write("Open " + p.name);
@@ -312,17 +312,18 @@ void MainWindow::sendFrame(const QByteArray &frame) const
     }
 }
 
-void MainWindow::aboutNuBridge2()
+void MainWindow::aboutNuTool()
 {
     QString html = "<B>Version 1.00</B><BR><BR>"
-                   "NuBridge2 terminal is based on the following Qt examples.<BR>"
+                   "NuTool-USB to Serial Port is based on the following Qt examples.<BR>"
                    "<a href=\"https://doc.qt.io/qt-5/qtserialport-terminal-example.html\">Terminal Example</a>"
                    " and "
                    "<a href=\"https://doc.qt.io/qt-5/qtserialbus-can-example.html\">CAN Bus example</a><BR><BR>"
                    "<B>Github Repository</B><BR>"
-                   "<a href=\"https://github.com/OpenNuvoton/NuBridge2_Terminal\">OpenNuvoton/NuBridge2_Terminal</a>";
+                   "<a href=\"https://github.com/OpenNuvoton/NuTool-USB-to-Serial-Port\">OpenNuvoton/NuTool-USB to Serial Port</a><BR>"
+                   "<a href=\"https://github.com/OpenNuvoton/Nu-Link2-Bridge_Firmware\">OpenNuvoton/Nu-Link2-Bridge_Firmware</a><BR>";
     QMessageBox *box = new QMessageBox(QMessageBox::NoIcon
-                                       , "About NuBridge2 terminal"
+                                       , "About NuTool-USB to Serial Port"
                                        , html
                                        , QMessageBox::Ok
                                        , this);
