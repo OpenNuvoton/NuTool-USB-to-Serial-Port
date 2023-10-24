@@ -53,6 +53,11 @@
 
 #include <QMainWindow>
 #include <QSerialPort>
+#include <QMutex>
+#include <QThread>
+#include <QObject>
+#include <QSerialPort>
+#include <QSerialPortInfo>
 #include "nuvbridge.h"
 
 QT_BEGIN_NAMESPACE
@@ -62,11 +67,78 @@ class SettingsDialog;
 class Console;
 class Logger;
 
-namespace Ui {
+namespace Ui
+{
 class MainWindow;
 }
 
 QT_END_NAMESPACE
+
+template <class T>
+class Buffer : public QObject
+{
+public:
+    explicit Buffer(quint32 size, quint8 value, QObject *parent = nullptr);
+    ~Buffer();
+
+public:
+    void push_back(T *data, quint32 count);
+    void delete_front(quint32 count);
+    bool peek_front(quint32 index, T *data);
+    quint32 get_count();
+    void reset();
+
+private:
+    T *m_buffer = nullptr;
+    quint32 m_size = 0;
+    quint32 m_count = 0;
+    quint32 m_head = 0;
+    quint32 m_tail = 0;
+    QMutex m_countMutex;
+    QMutex m_headMutex;
+    QMutex m_tailMutex;
+};
+
+
+class Formatter : public QObject
+{
+    Q_OBJECT
+public:
+    typedef struct {
+        char buffer[40 << 10];
+        quint32 size;
+    } FORMAT_BLOCK_T;
+
+    typedef struct {
+        quint32 index;
+        quint64 timestamp;
+        FORMAT_BLOCK_T block;
+    } RECORD_T;
+
+public:
+    explicit Formatter(QObject *parent = nullptr);
+    ~Formatter();
+
+    void regFrame(void *frames, Buffer<FORMAT_BLOCK_T> *blocks, void (*formatter)(RECORD_T *record, void *frames, Buffer<FORMAT_BLOCK_T> *blocks));
+    void reset();
+
+signals:
+    void signal_deletePortObject();
+
+private slots:
+    void slot_init();
+    void slot_update();
+    void slot_flush();
+
+private:
+    QTimer *m_timer = nullptr;
+    RECORD_T m_record;
+    void *m_frames = nullptr;
+    void (*m_formatter)(RECORD_T *record, void *frames, Buffer<FORMAT_BLOCK_T> *blocks) = nullptr;
+    Buffer<FORMAT_BLOCK_T> *m_blocks = nullptr;
+    QMutex m_mutex;
+};
+
 
 class MainWindow : public QMainWindow
 {
@@ -77,12 +149,16 @@ public:
     ~MainWindow();
     void aboutNuTool();
 
+signals:
+    void signal_formatterFlush();
+
 private slots:
     void processReceivedFrames();
     void sendFrame(const QByteArray &frame) const;
     void openSerialPort();
     void closeSerialPort();
     void processErrors(QSerialPort::SerialPortError error);
+    void readFrames();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -98,9 +174,13 @@ private:
     QSerialPort *m_serial = nullptr;
     Console *m_console = nullptr;
     bool m_deviceConnected = false;
-    QWidget *m_arrWidgets[3];
-    int m_mode = 0;
-
+    QWidget *m_arrWidgets[4];
+    qint32 m_mode = 0;
+    Buffer<Formatter::FORMAT_BLOCK_T> *m_blocks = nullptr;
+    Formatter *m_formatter = nullptr;
+    QThread *m_thread = nullptr;
+    QTimer *m_timer = nullptr;
+    void *m_frames = nullptr;
     Logger *m_logger = nullptr;
 };
 

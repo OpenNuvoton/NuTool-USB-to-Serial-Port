@@ -87,6 +87,7 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     fillCanParameters();
     fillI2cParameters();
     fillSpiParameters();
+    fillUARTParameters();
     fillPortsInfo();
 
 
@@ -120,6 +121,7 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     m_ui->brgModeBox->addItem(tr("CAN"), 0);
     m_ui->brgModeBox->addItem(tr("I2C"), 1);
     m_ui->brgModeBox->addItem(tr("SPI"), 2);
+    m_ui->brgModeBox->addItem(tr("UART"), 3);
     m_ui->brgModeBox->setCurrentIndex(m_mode);
     m_ui->parametersBox->setCurrentIndex(m_mode);
 
@@ -265,6 +267,41 @@ void SettingsDialog::fillSpiParameters()
     m_ui->spiSsActiveBox->setCurrentIndex(0); // default is SS Active Low
 }
 
+void SettingsDialog::fillUARTParameters()
+{
+    const QList<int> rates = {
+        230400,
+        128000,
+        115200,
+        57600,
+        28800,
+        19200,
+        9600,
+        4800
+    };
+
+    for (int rate : rates)
+        m_ui->uartBaudRateBox->addItem(QString::number(rate), rate);
+    m_ui->uartBaudRateBox->setCurrentIndex(2);
+
+    m_ui->uartParityBitBox->addItem(tr("NONE"), 0);
+    m_ui->uartParityBitBox->addItem(tr("ODD"), 1);
+    m_ui->uartParityBitBox->addItem(tr("EVEN"), 2);
+    m_ui->uartParityBitBox->addItem(tr("MARK"), 3);
+    m_ui->uartParityBitBox->setCurrentIndex(0);
+
+    m_ui->uartDataBitBox->addItem(tr("8"), 0);
+    m_ui->uartDataBitBox->addItem(tr("7"), 1);
+    m_ui->uartDataBitBox->addItem(tr("6"), 2);
+    m_ui->uartDataBitBox->addItem(tr("5"), 3);
+    m_ui->uartDataBitBox->setCurrentIndex(0);
+
+    m_ui->uartStopBitBox->addItem(tr("1"), 0);
+    m_ui->uartStopBitBox->addItem(tr("1.5"), 1);
+    m_ui->uartStopBitBox->addItem(tr("2"), 2);
+    m_ui->uartStopBitBox->setCurrentIndex(0);
+}
+
 void SettingsDialog::fillPortsInfo()
 {
     m_ui->serialPortInfoListBox->clear();
@@ -319,6 +356,20 @@ void SettingsDialog::updateSettings()
 
         QSerialPort::DataBits spiMisc[4] = {QSerialPort::Data8, QSerialPort::Data5, QSerialPort::Data6, QSerialPort::Data7};
         m_currentSettings.dataBits = spiMisc[m_ui->spiOrderBox->currentIndex() + 2 * m_ui->spiSsActiveBox->currentIndex()];
+        return;
+    } else if (m_mode == BRG_MODE_UART) {
+        m_currentSettings.baudRate = m_ui->uartBaudRateBox->itemData(m_ui->uartBaudRateBox->currentIndex()).toInt();
+        m_currentSettings.normalModeEnabled = 0;
+
+        QSerialPort::Parity parity[4] = {QSerialPort::NoParity, QSerialPort::OddParity, QSerialPort::EvenParity, QSerialPort::MarkParity};
+        m_currentSettings.parity = parity[m_ui->uartParityBitBox->currentIndex()];
+
+        QSerialPort::DataBits databits[4] = {QSerialPort::Data8, QSerialPort::Data7, QSerialPort::Data6, QSerialPort::Data5};
+        m_currentSettings.dataBits = databits[m_ui->uartDataBitBox->currentIndex()];
+
+        QSerialPort::StopBits stopbits[3] = {QSerialPort::OneStop, QSerialPort::OneAndHalfStop, QSerialPort::TwoStop};
+        m_currentSettings.stopBits = stopbits[m_ui->uartStopBitBox->currentIndex()];
+
         return;
     }
 

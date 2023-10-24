@@ -59,15 +59,266 @@
 #include <QTimer>
 #include <QMessageBox>
 
-MainWindow::MainWindow(QWidget *parent) :
-    QMainWindow(parent),
-    m_ui(new Ui::MainWindow),
-    m_status(new QLabel),
-    m_written(new QLabel),
-    m_settings(new SettingsDialog),
-    m_serial(new QSerialPort(this)),
-    m_console(new Console)
+#define TOOL_VERSION    "1.02"
+
+typedef struct {
+    quint8 data;
+} NORMAL_FRAME_T;
+
+typedef struct {
+    quint8 channel;
+    quint8 data;
+    quint8 reserved[2];
+    quint32 timestamp;
+} UART_FRAME_T;
+
+
+template <class T> Buffer<T>::Buffer(quint32 size, quint8 value, QObject *parent)
+    : QObject(parent)
+    , m_size(size)
 {
+    m_buffer = new T[m_size];
+    memset(m_buffer, value, m_size * sizeof(T));
+}
+
+template <class T> Buffer<T>::~Buffer()
+{
+    delete m_buffer;
+    m_buffer = nullptr;
+}
+
+template <class T>
+void Buffer<T>::push_back(T *data, quint32 count)
+{
+    const QMutexLocker lock0(&m_headMutex);
+    const QMutexLocker lock1(&m_countMutex);
+
+    if ((m_count + count) > m_size)
+        return;
+
+    for (quint32 i = 0; i < count; i++) {
+        if (data != nullptr)
+            m_buffer[m_head] = data[i];
+
+        m_head++;
+
+        if (m_head >= m_size)
+            m_head = 0;
+    }
+
+    m_count += count;
+}
+
+template <class T>
+void Buffer<T>::delete_front(quint32 count)
+{
+    const QMutexLocker lock0(&m_tailMutex);
+    const QMutexLocker lock1(&m_countMutex);
+
+    if (m_count < count)
+        return;
+
+    m_tail += count;
+
+    if (m_tail >= m_size)
+        m_tail -= m_size;
+
+    m_count -= count;
+}
+
+template <class T>
+bool Buffer<T>::peek_front(quint32 index, T *data)
+{
+    const QMutexLocker lock0(&m_tailMutex);
+    const QMutexLocker lock1(&m_countMutex);
+    quint32 tail;
+
+    if (index >= m_count)
+        return false;
+
+    tail = m_tail + index;
+
+    if (tail >= m_size)
+        tail -= m_size;
+
+    *data = m_buffer[tail];
+
+    return true;
+}
+
+template <class T>
+quint32 Buffer<T>::get_count()
+{
+    const QMutexLocker lock(&m_countMutex);
+    return m_count;
+}
+
+template <class T>
+void Buffer<T>::reset()
+{
+    const QMutexLocker lock0(&m_countMutex);
+    const QMutexLocker lock1(&m_headMutex);
+    const QMutexLocker lock2(&m_tailMutex);
+
+    m_count = 0;
+    m_head = 0;
+    m_tail = 0;
+}
+
+
+Formatter::Formatter(QObject *parent)
+    : QObject(parent)
+{
+    m_timer = new QTimer(this);
+
+    memset(&m_record, 0, sizeof(m_record));
+
+    connect(m_timer, SIGNAL(timeout()), this, SLOT(slot_update()));
+
+    m_timer->start(0);
+}
+
+Formatter::~Formatter()
+{
+    emit signal_deletePortObject();
+
+    m_timer->stop();
+
+    delete m_timer;
+}
+
+void Formatter::regFrame(void *frames, Buffer<FORMAT_BLOCK_T> *blocks, void (*formatter)(RECORD_T *record, void *frames, Buffer<FORMAT_BLOCK_T> *blocks))
+{
+    const QMutexLocker lock(&m_mutex);
+
+    m_frames = frames;
+    m_blocks = blocks;
+    m_formatter = formatter;
+}
+
+void Formatter::reset()
+{
+    const QMutexLocker lock(&m_mutex);
+
+    memset(&m_record, 0, sizeof(m_record));
+}
+
+void Formatter::slot_init()
+{
+}
+
+void Formatter::slot_update()
+{
+    const QMutexLocker lock(&m_mutex);
+
+    if (m_formatter != nullptr) {
+        m_formatter(&m_record, m_frames, m_blocks);
+    }
+}
+
+void Formatter::slot_flush()
+{
+    const QMutexLocker lock(&m_mutex);
+
+    if (m_record.block.size > 0) {
+        m_blocks->push_back(&m_record.block, 1);
+        m_record.block.size = 0;
+    }
+}
+
+
+static void formatter_normal(Formatter::RECORD_T *record, void *frames, Buffer<Formatter::FORMAT_BLOCK_T> *blocks)
+{
+    if (frames != nullptr && blocks != nullptr) {
+        quint32 count = static_cast<Buffer<NORMAL_FRAME_T> *>(frames)->get_count();
+        NORMAL_FRAME_T frame;
+
+        for (quint32 i = 0; i < count; i++) {
+            static_cast<Buffer<NORMAL_FRAME_T> *>(frames)->peek_front(i, &frame);
+
+            sprintf(&(record->block.buffer[record->block.size]), " %02X", frame.data);
+            record->block.size += 3;
+
+            if (record->block.size > (sizeof(record->block) - 3)) {
+                blocks->push_back(&record->block, 1);
+                record->block.size = 0;
+            }
+        }
+
+        static_cast<Buffer<NORMAL_FRAME_T> *>(frames)->delete_front(count);
+    }
+}
+
+static void formatter_uart(Formatter::RECORD_T *record, void *frames, Buffer<Formatter::FORMAT_BLOCK_T> *blocks)
+{
+    if (frames != nullptr && blocks != nullptr) {
+        quint32 count = static_cast<Buffer<UART_FRAME_T> *>(frames)->get_count();
+        UART_FRAME_T frame;
+        quint64 timestamp;
+
+        for (quint32 i = 0; i < count; i++) {
+            static_cast<Buffer<UART_FRAME_T> *>(frames)->peek_front(i, &frame);
+
+            timestamp = record->timestamp;
+            record->timestamp += frame.timestamp;
+
+            if (frame.channel > 0) {
+                if ((timestamp / 1000) != (record->timestamp / 1000)) {
+                    std::string timeString = QTime(0, 0, 0, 0).addMSecs(record->timestamp / 1000).toString("hh:mm:ss.zzz").toStdString();
+
+                    if (record->index == 0) {
+                        sprintf(&(record->block.buffer[record->block.size]), "[+%s] ", timeString.c_str());
+                        record->block.size += 16;
+                    } else {
+                        sprintf(&(record->block.buffer[record->block.size]), "\n[+%s] ", timeString.c_str());
+                        record->block.size += 17;
+                    }
+
+                    record->index = 0;
+
+                    if (record->block.size > (sizeof(record->block) - 17)) {
+                        blocks->push_back(&record->block, 1);
+                        record->block.size = 0;
+                    }
+                }
+            }
+
+            if (frame.channel == 1) {
+                sprintf(&(record->block.buffer[record->block.size]), "  %02X", frame.data);
+                record->block.size += 4;
+                record->index++;
+            } else if (frame.channel == 2) {
+                sprintf(&(record->block.buffer[record->block.size]), " *%02X", frame.data);
+                record->block.size += 4;
+                record->index++;
+            }
+
+            if (record->block.size > (sizeof(record->block) - 17)) {
+                blocks->push_back(&record->block, 1);
+                record->block.size = 0;
+            }
+        }
+
+        static_cast<Buffer<UART_FRAME_T> *>(frames)->delete_front(count);
+    }
+}
+
+
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent)
+    , m_ui(new Ui::MainWindow)
+    , m_status(new QLabel)
+    , m_written(new QLabel)
+    , m_settings(new SettingsDialog)
+    , m_serial(new QSerialPort(this))
+    , m_console(new Console)
+    , m_thread(new QThread)
+    , m_timer(new QTimer)
+{
+    m_blocks = new Buffer<Formatter::FORMAT_BLOCK_T>(2 << 10, 0);
+    m_formatter = new Formatter();
+    m_formatter->moveToThread(m_thread);
+
     m_ui->setupUi(this);
     m_ui->verticalLayout_4->addWidget(m_console);
     m_ui->receivedMessagesEdit->hide();
@@ -87,16 +338,48 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(m_serial, SIGNAL(error(QSerialPort::SerialPortError)), this,
             SLOT(processErrors(QSerialPort::SerialPortError)));
 #endif
-    connect(m_serial, &QSerialPort::readyRead, this, &MainWindow::processReceivedFrames);
+    connect(m_serial, &QSerialPort::readyRead, this, &MainWindow::readFrames);
 
-    for (int i = 0; i < 3; i++) {
+    for (qint32 i = 0; i < 4; i++) {
         m_arrWidgets[i] = m_ui->sendFrameBox->widget(i);
     }
+
     m_ui->sendFrameBox->setTabBarAutoHide(true);
+
+    m_thread->start();
+    m_timer->start(0);
 }
 
 MainWindow::~MainWindow()
 {
+    if (m_serial->isOpen())
+        m_serial->close();
+
+    m_timer->stop();
+    m_thread->quit();
+    m_thread->wait();
+
+    if (m_mode == BRG_MODE_UART) {
+        if (m_frames != nullptr) {
+            delete static_cast<Buffer<UART_FRAME_T> *>(m_frames);
+            m_frames = nullptr;
+        }
+    } else {
+        if (m_frames != nullptr) {
+            delete static_cast<Buffer<NORMAL_FRAME_T> *>(m_frames);
+            m_frames = nullptr;
+        }
+    }
+
+    if (m_logger != nullptr) {
+        delete m_logger;
+        m_logger = nullptr;
+    }
+
+    delete m_timer;
+    delete m_thread;
+    delete m_serial;
+    delete m_blocks;
     delete m_settings;
     delete m_ui;
 }
@@ -114,6 +397,15 @@ void MainWindow::initActionsConnections()
     connect(m_ui->actionClearLog, &QAction::triggered, m_ui->receivedMessagesEdit, &QTextEdit::clear);
     connect(m_ui->actionClearLog, &QAction::triggered, m_console, &Console::clear);
     connect(m_ui->actionAboutNuTool, &QAction::triggered, this, &MainWindow::aboutNuTool);
+
+    connect(m_formatter, SIGNAL(signal_deletePortObject()), m_thread, SLOT(quit()));
+    connect(m_formatter, SIGNAL(signal_deletePortObject()), m_thread, SLOT(deleteLater()));
+    connect(m_thread, SIGNAL(started()), m_formatter, SLOT(slot_init()));
+    connect(m_thread, SIGNAL(finished()), m_formatter, SLOT(deleteLater()));
+    connect(m_thread, &QThread::finished, m_thread, &QObject::deleteLater);
+
+    connect(this, SIGNAL(signal_formatterFlush()), m_formatter, SLOT(slot_flush()));
+    connect(m_timer, SIGNAL(timeout()), this, SLOT(processReceivedFrames()));
 }
 
 void MainWindow::processErrors(QSerialPort::SerialPortError error)
@@ -152,12 +444,30 @@ void MainWindow::openSerialPort()
     m_serial->setParity(p.parity);
     m_serial->setStopBits(p.stopBits);
     m_serial->setFlowControl(QSerialPort::NoFlowControl);
+
+    m_formatter->reset();
+    m_formatter->regFrame(nullptr, nullptr, nullptr);
+    m_blocks->reset();
+
+    if (m_mode == BRG_MODE_UART) {
+        if (m_frames != nullptr) {
+            delete static_cast<Buffer<UART_FRAME_T> *>(m_frames);
+            m_frames = nullptr;
+        }
+    } else {
+        if (m_frames != nullptr) {
+            delete static_cast<Buffer<NORMAL_FRAME_T> *>(m_frames);
+            m_frames = nullptr;
+        }
+    }
+
     if (m_serial->open(QIODevice::ReadWrite)) {
         m_serial->setDataTerminalReady(true);
         m_deviceConnected = true;
         m_numberFramesWritten = 0;
         m_ui->actionConnect->setEnabled(false);
         m_ui->actionDisconnect->setEnabled(true);
+
         if (p.normalModeEnabled) {
             m_ui->sendFrameBox->show();
         } else {
@@ -174,10 +484,11 @@ void MainWindow::openSerialPort()
         m_ui->sendFrameBox->insertTab(0, m_arrWidgets[p.brgMode], tr(""));
 
         m_mode = p.brgMode;
+
         if (m_mode == BRG_MODE_CAN) { // for CAN interface only
             // QByteArray ba = "CANC";
             QByteArray ba;
-            int i = 0;
+            qint32 i = 0;
             ba.resize(32);
             ba[i++] = 'C';
             ba[i++] = 'A';
@@ -218,11 +529,28 @@ void MainWindow::openSerialPort()
             ba[i++] = (p.canID[3] >> 8) & 0xFF;
             ba[i++] = (p.canID[3] >> 16) & 0xFF;
             ba[i++] = (p.canID[3] >> 24) & 0xFF;
+
             m_serial->write(ba);
             // m_serial->flush();
         }
 
-        if (m_logger == 0) {
+        if (m_mode == BRG_MODE_UART) {
+            m_frames = static_cast<void *>(new Buffer<UART_FRAME_T>((2 << 20) / sizeof(UART_FRAME_T), 0));
+
+            if (static_cast<Buffer<UART_FRAME_T> *>(m_frames) != nullptr) {
+                static_cast<Buffer<UART_FRAME_T> *>(m_frames)->reset();
+                m_formatter->regFrame(m_frames, m_blocks, formatter_uart);
+            }
+        } else {
+            m_frames = static_cast<void *>(new Buffer<NORMAL_FRAME_T>((2 << 20) / sizeof(NORMAL_FRAME_T), 0));
+
+            if (static_cast<Buffer<NORMAL_FRAME_T> *>(m_frames) != nullptr) {
+                static_cast<Buffer<NORMAL_FRAME_T> *>(m_frames)->reset();
+                m_formatter->regFrame(m_frames, m_blocks, formatter_normal);
+            }
+        }
+
+        if (m_logger == nullptr) {
             m_logger = new Logger(this, "LogData.txt");
         }
 
@@ -236,8 +564,9 @@ void MainWindow::openSerialPort()
         m_ui->sendFrameBox->insertTab(0, m_arrWidgets[0], tr("CAN"));
         m_ui->sendFrameBox->insertTab(1, m_arrWidgets[1], tr("I2C"));
         m_ui->sendFrameBox->insertTab(2, m_arrWidgets[2], tr("SPI"));
+        m_ui->sendFrameBox->insertTab(3, m_arrWidgets[3], tr("UART"));
 
-        if (m_logger != 0) {
+        if (m_logger != nullptr) {
             delete m_logger;
             m_logger = nullptr;
         }
@@ -249,7 +578,23 @@ void MainWindow::closeSerialPort()
     if (m_serial->isOpen())
         m_serial->close();
 
-    if (m_logger != 0) {
+    m_formatter->reset();
+    m_formatter->regFrame(nullptr, nullptr, nullptr);
+    m_blocks->reset();
+
+    if (m_mode == BRG_MODE_UART) {
+        if (m_frames != nullptr) {
+            delete static_cast<Buffer<UART_FRAME_T> *>(m_frames);
+            m_frames = nullptr;
+        }
+    } else {
+        if (m_frames != nullptr) {
+            delete static_cast<Buffer<NORMAL_FRAME_T> *>(m_frames);
+            m_frames = nullptr;
+        }
+    }
+
+    if (m_logger != nullptr) {
         delete m_logger;
         m_logger = nullptr;
     }
@@ -265,6 +610,7 @@ void MainWindow::closeSerialPort()
     m_ui->sendFrameBox->insertTab(0, m_arrWidgets[0], tr("CAN"));
     m_ui->sendFrameBox->insertTab(1, m_arrWidgets[1], tr("I2C"));
     m_ui->sendFrameBox->insertTab(2, m_arrWidgets[2], tr("SPI"));
+    m_ui->sendFrameBox->insertTab(3, m_arrWidgets[3], tr("UART"));
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -275,12 +621,32 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::processReceivedFrames()
 {
-    const QByteArray data = m_serial->readAll();
-    m_console->putData(data.toHex(' '));
-    m_console->putData("\r\n");
+    quint32 count = m_blocks->get_count();
 
-    if (m_logger != 0) {
-        m_logger->write(data.toHex(' '));
+    if (count == 0) {
+        emit signal_formatterFlush();
+    } else {
+        Formatter::FORMAT_BLOCK_T block;
+
+        for (quint32 i = 0; i < count; i++) {
+            m_blocks->peek_front(i, &block);
+
+            m_console->putData(static_cast<char *>(block.buffer));
+
+            if (m_logger != nullptr) {
+                m_logger->write(static_cast<char *>(block.buffer));
+            }
+
+            QCoreApplication::processEvents();
+        }
+
+        if (m_mode == BRG_MODE_UART) {
+            ;
+        } else {
+            m_console->putData("\r\n");
+        }
+
+        m_blocks->delete_front(count);
     }
 }
 
@@ -312,9 +678,34 @@ void MainWindow::sendFrame(const QByteArray &frame) const
     }
 }
 
+void MainWindow::readFrames()
+{
+    if (!m_serial->isOpen()) {
+        return;
+    }
+
+    QByteArray frames = m_serial->readAll();
+
+    if (frames.isEmpty()) {
+        return;
+    }
+
+    if (m_mode == BRG_MODE_UART) {
+        if ((frames.size() % sizeof(UART_FRAME_T)) == 0) {
+            static_cast<Buffer<UART_FRAME_T> *>(m_frames)->push_back(reinterpret_cast<UART_FRAME_T *>(frames.data())
+                                                                     , frames.size() / sizeof(UART_FRAME_T));
+        }
+    } else {
+        if ((frames.size() % sizeof(NORMAL_FRAME_T)) == 0) {
+            static_cast<Buffer<NORMAL_FRAME_T> *>(m_frames)->push_back(reinterpret_cast<NORMAL_FRAME_T *>(frames.data())
+                                                                       , frames.size() / sizeof(NORMAL_FRAME_T));
+        }
+    }
+}
+
 void MainWindow::aboutNuTool()
 {
-    QString html = "<B>Version 1.02</B><BR><BR>"
+    QString html = "<B>Version " TOOL_VERSION "</B><BR><BR>"
                    "NuTool-USB to Serial Port is based on the following Qt examples.<BR>"
                    "<a href=\"https://doc.qt.io/qt-5/qtserialport-terminal-example.html\">Terminal Example</a>"
                    " and "

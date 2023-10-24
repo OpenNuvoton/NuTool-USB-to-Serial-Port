@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>343</width>
+    <width>361</width>
     <height>343</height>
    </rect>
   </property>
@@ -298,6 +298,103 @@
         <widget class="QComboBox" name="spiSsActiveBox"/>
        </item>
       </layout>
+     </widget>
+     <widget class="QWidget" name="tabUART">
+      <attribute name="title">
+       <string>UART</string>
+      </attribute>
+      <widget class="QLabel" name="uartBaudRateLabel">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>20</y>
+         <width>108</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Baud Rate:</string>
+       </property>
+      </widget>
+      <widget class="QComboBox" name="uartBaudRateBox">
+       <property name="geometry">
+        <rect>
+         <x>100</x>
+         <y>20</y>
+         <width>81</width>
+         <height>20</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QLabel" name="uartParityBitLabel">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>60</y>
+         <width>108</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Parity Bit:</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="uartDataBitLabel">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>100</y>
+         <width>108</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Data Bit:</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="uartBaudRateLabel_4">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>140</y>
+         <width>108</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Stop Bit:</string>
+       </property>
+      </widget>
+      <widget class="QComboBox" name="uartParityBitBox">
+       <property name="geometry">
+        <rect>
+         <x>100</x>
+         <y>60</y>
+         <width>81</width>
+         <height>20</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QComboBox" name="uartDataBitBox">
+       <property name="geometry">
+        <rect>
+         <x>100</x>
+         <y>100</y>
+         <width>81</width>
+         <height>20</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QComboBox" name="uartStopBitBox">
+       <property name="geometry">
+        <rect>
+         <x>100</x>
+         <y>140</y>
+         <width>81</width>
+         <height>20</height>
+        </rect>
+       </property>
+      </widget>
      </widget>
     </widget>
    </item>

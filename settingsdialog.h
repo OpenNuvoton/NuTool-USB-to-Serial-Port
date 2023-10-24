@@ -66,9 +66,10 @@ class HexIntegerValidator;
 
 QT_END_NAMESPACE
 
-#define BRG_MODE_CAN (0)
-#define BRG_MODE_I2C (1)
-#define BRG_MODE_SPI (2)
+#define BRG_MODE_CAN  (0)
+#define BRG_MODE_I2C  (1)
+#define BRG_MODE_SPI  (2)
+#define BRG_MODE_UART (3)
 
 class SettingsDialog : public QDialog
 {
@@ -111,6 +112,7 @@ private:
     void revertSettings();
     void fillI2cParameters();
     void fillSpiParameters();
+    void fillUARTParameters();
 
 private:
     Ui::SettingsDialog *m_ui = nullptr;

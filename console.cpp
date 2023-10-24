@@ -56,11 +56,19 @@
 Console::Console(QWidget *parent) :
     QPlainTextEdit(parent)
 {
-    document()->setMaximumBlockCount(100);
+    document()->setMaximumBlockCount(1000);
     QPalette p = palette();
     p.setColor(QPalette::Base, Qt::black);
     p.setColor(QPalette::Text, Qt::green);
     setPalette(p);
+
+    QFont font;
+    font.setFamily(QStringLiteral("Consolas"));
+    font.setPointSize(8);
+    font.setBold(false);
+    font.setItalic(false);
+    font.setWeight(50);
+    QPlainTextEdit::setFont(font);
 }
 
 void Console::putData(const QByteArray &data)
