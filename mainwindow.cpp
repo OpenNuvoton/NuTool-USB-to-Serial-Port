@@ -129,19 +129,20 @@ void MainWindow::openSerialPort()
     const SettingsDialog::Settings p = m_settings->settings();
     m_serial->setPortName(p.name);
 
-    bool isNuLink2 = false;
+    qint32 iProBridge = 0;
 
     if (p.usbVendorID == 0x0416) {
         if ((p.usbProductID == 0x5204) || (p.usbProductID == 0x5205) || (p.usbProductID == 0x2008)) {
-            isNuLink2 = true;
+            iProBridge = 2;
+        }
+
+        if ((p.usbProductID == 0x200A)) {
+            iProBridge = 3;
         }
     }
 
-    // The official NuLink2 fw has merged all the interface into one application.
-    // NuLink2 uses the most significant bits in baudRate to switch the interface.
-    // NuLink2 adapter vendor id = 0x0416, product id = 0x5204 or 0x5205 or 0x2008
-
-    if (isNuLink2) {
+    // NuLink2/3-Pro uses the most significant bits in baudRate to switch the interface.
+    if (iProBridge > 0) {
         qint32 baudRate = (p.baudRate & 0x0FFFFFFF) | ((p.brgMode + 1) << 28);
         m_serial->setBaudRate(baudRate);
     } else {
@@ -164,8 +165,8 @@ void MainWindow::openSerialPort()
             m_ui->sendFrameBox->hide();
         }
 
-        if (isNuLink2) {
-            m_status->setText(tr("Connected to %1 (Nu-Link2)").arg(p.name));
+        if (iProBridge > 0) {
+            m_status->setText(tr("Connected to %1 (Nu-Link%2)").arg(p.name).arg(iProBridge));
         } else {
             m_status->setText(tr("Connected to %1").arg(p.name));
         }

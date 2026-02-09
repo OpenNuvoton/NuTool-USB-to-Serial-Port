@@ -272,21 +272,26 @@ void SettingsDialog::fillPortsInfo()
     QString description;
     QString manufacturer;
     QString serialNumber;
+    QRegularExpression re("^Nu-Link\\d-Bridge");
+
     const auto infos = QSerialPortInfo::availablePorts();
     for (const QSerialPortInfo &info : infos) {
         QStringList list;
         description = info.description();
         manufacturer = info.manufacturer();
         serialNumber = info.serialNumber();
-        list << info.portName()
-             << (!description.isEmpty() ? description : blankString)
-             << (!manufacturer.isEmpty() ? manufacturer : blankString)
-             << (!serialNumber.isEmpty() ? serialNumber : blankString)
-             << info.systemLocation()
-             << (info.vendorIdentifier() ? QString::number(info.vendorIdentifier(), 16) : blankString)
-             << (info.productIdentifier() ? QString::number(info.productIdentifier(), 16) : blankString);
 
-        m_ui->serialPortInfoListBox->addItem(list.first(), list);
+        if (re.match(description).hasMatch()) {
+            list << info.portName()
+                 << (!description.isEmpty() ? description : blankString)
+                 << (!manufacturer.isEmpty() ? manufacturer : blankString)
+                 << (!serialNumber.isEmpty() ? serialNumber : blankString)
+                 << info.systemLocation()
+                 << (info.vendorIdentifier() ? QString("%1").arg(info.vendorIdentifier(), 4, 16, QChar('0')) : blankString)
+                 << (info.productIdentifier() ? QString("%1").arg(info.productIdentifier(), 4, 16, QChar('0')) : blankString);
+
+            m_ui->serialPortInfoListBox->addItem(list.first(), list);
+        }
     }
 }
 
