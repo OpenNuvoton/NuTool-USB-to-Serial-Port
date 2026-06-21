@@ -315,7 +315,7 @@ void MainWindow::sendFrame(const QByteArray &frame) const
 
 void MainWindow::aboutNuTool()
 {
-    QString html = "<B>Version 1.02</B><BR><BR>"
+    QString html = "<B>Version 1.03</B><BR><BR>"
                    "NuTool-USB to Serial Port is based on the following Qt examples.<BR>"
                    "<a href=\"https://doc.qt.io/qt-5/qtserialport-terminal-example.html\">Terminal Example</a>"
                    " and "
